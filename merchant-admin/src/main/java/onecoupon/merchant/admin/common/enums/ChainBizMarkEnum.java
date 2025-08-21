@@ -32,68 +32,20 @@
  * 本软件受到[山东流年网络科技有限公司]及其许可人的版权保护。
  */
 
-package com.nageoffer.onecoupon.merchant.admin.template;
-
-import cn.hutool.core.lang.Snowflake;
-import cn.hutool.core.util.RandomUtil;
-import onecoupon.merchant.admin.dao.entity.CouponTemplateDO;
-import onecoupon.merchant.admin.dao.mapper.CouponTemplateMapper;
-import jodd.util.ThreadUtil;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+package onecoupon.merchant.admin.common.enums;
 
 /**
- * Mock 优惠券模板数据，方便分库分表均衡测试
- * <p>
- * 作者：马丁
- * 加项目群：早加入就是优势！500人内部项目群，分享的知识总有你需要的 <a href="https://t.zsxq.com/cw7b9" />
- * 开发时间：2024-07-10
+ * 定义业务责任链类型枚举
  */
-@SpringBootTest
-public class MockCouponTemplateDataTests {
+public enum ChainBizMarkEnum {
 
-    @Autowired
-    private CouponTemplateMapper couponTemplateMapper;
+    /**
+     * 创建优惠券模板验证参数是否正确责任链流程
+     */
+    MERCHANT_ADMIN_CREATE_COUPON_TEMPLATE_KEY;
 
-    private final CouponTemplateTest couponTemplateTest = new CouponTemplateTest();
-    private final List<Snowflake> snowflakes = new ArrayList<>();
-    private final ExecutorService executorService = new ThreadPoolExecutor(
-            10,
-            10,
-            9999,
-            TimeUnit.SECONDS,
-            new SynchronousQueue<>(),
-            new ThreadPoolExecutor.CallerRunsPolicy()
-    );
-    private final int maxNum = 50000;
-
-    public void beforeDataBuild() {
-        for (int i = 0; i < 20; i++) {
-            snowflakes.add(new Snowflake(i));
-        }
-    }
-
-    @Test
-    public void mockCouponTemplateTest() {
-        beforeDataBuild();
-        AtomicInteger count = new AtomicInteger(0);
-        while (count.get() < maxNum) {
-            executorService.execute(() -> {
-                ThreadUtil.sleep(RandomUtil.randomInt(10));
-                CouponTemplateDO couponTemplateDO = couponTemplateTest.buildCouponTemplateDO();
-                couponTemplateDO.setShopNumber(snowflakes.get(RandomUtil.randomInt(20)).nextId());
-                couponTemplateMapper.insert(couponTemplateDO);
-                count.incrementAndGet();
-            });
-        }
+    @Override
+    public String toString() {
+        return this.name();
     }
 }

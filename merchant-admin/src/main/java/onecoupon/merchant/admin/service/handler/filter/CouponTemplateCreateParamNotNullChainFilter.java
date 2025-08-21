@@ -32,68 +32,69 @@
  * 本软件受到[山东流年网络科技有限公司]及其许可人的版权保护。
  */
 
-package com.nageoffer.onecoupon.merchant.admin.template;
+package onecoupon.merchant.admin.service.handler.filter;
 
-import cn.hutool.core.lang.Snowflake;
-import cn.hutool.core.util.RandomUtil;
-import onecoupon.merchant.admin.dao.entity.CouponTemplateDO;
-import onecoupon.merchant.admin.dao.mapper.CouponTemplateMapper;
-import jodd.util.ThreadUtil;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.StrUtil;
+import onecoupon.framework.exception.ClientException;
+import onecoupon.merchant.admin.dto.req.CouponTemplateSaveReqDTO;
+import onecoupon.merchant.admin.service.basics.chain.MerchantAdminAbstractChainHandler;
+import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import static onecoupon.merchant.admin.common.enums.ChainBizMarkEnum.MERCHANT_ADMIN_CREATE_COUPON_TEMPLATE_KEY;
 
 /**
- * Mock 优惠券模板数据，方便分库分表均衡测试
- * <p>
- * 作者：马丁
- * 加项目群：早加入就是优势！500人内部项目群，分享的知识总有你需要的 <a href="https://t.zsxq.com/cw7b9" />
- * 开发时间：2024-07-10
+ * 验证优惠券创建接口参数是否正确责任链｜验证必填参数是否为空或空的字符串
  */
-@SpringBootTest
-public class MockCouponTemplateDataTests {
+@Component
+public class CouponTemplateCreateParamNotNullChainFilter implements MerchantAdminAbstractChainHandler<CouponTemplateSaveReqDTO> {
 
-    @Autowired
-    private CouponTemplateMapper couponTemplateMapper;
+    @Override
+    public void handler(CouponTemplateSaveReqDTO requestParam) {
+        if (StrUtil.isEmpty(requestParam.getName())) {
+            throw new ClientException("优惠券名称不能为空");
+        }
 
-    private final CouponTemplateTest couponTemplateTest = new CouponTemplateTest();
-    private final List<Snowflake> snowflakes = new ArrayList<>();
-    private final ExecutorService executorService = new ThreadPoolExecutor(
-            10,
-            10,
-            9999,
-            TimeUnit.SECONDS,
-            new SynchronousQueue<>(),
-            new ThreadPoolExecutor.CallerRunsPolicy()
-    );
-    private final int maxNum = 50000;
+        if (ObjectUtil.isEmpty(requestParam.getSource())) {
+            throw new ClientException("优惠券来源不能为空");
+        }
 
-    public void beforeDataBuild() {
-        for (int i = 0; i < 20; i++) {
-            snowflakes.add(new Snowflake(i));
+        if (ObjectUtil.isEmpty(requestParam.getTarget())) {
+            throw new ClientException("优惠对象不能为空");
+        }
+
+        if (ObjectUtil.isEmpty(requestParam.getType())) {
+            throw new ClientException("优惠类型不能为空");
+        }
+
+        if (ObjectUtil.isEmpty(requestParam.getValidStartTime())) {
+            throw new ClientException("有效期开始时间不能为空");
+        }
+
+        if (ObjectUtil.isEmpty(requestParam.getValidEndTime())) {
+            throw new ClientException("有效期结束时间不能为空");
+        }
+
+        if (ObjectUtil.isEmpty(requestParam.getStock())) {
+            throw new ClientException("库存不能为空");
+        }
+
+        if (StrUtil.isEmpty(requestParam.getReceiveRule())) {
+            throw new ClientException("领取规则不能为空");
+        }
+
+        if (StrUtil.isEmpty(requestParam.getConsumeRule())) {
+            throw new ClientException("消耗规则不能为空");
         }
     }
 
-    @Test
-    public void mockCouponTemplateTest() {
-        beforeDataBuild();
-        AtomicInteger count = new AtomicInteger(0);
-        while (count.get() < maxNum) {
-            executorService.execute(() -> {
-                ThreadUtil.sleep(RandomUtil.randomInt(10));
-                CouponTemplateDO couponTemplateDO = couponTemplateTest.buildCouponTemplateDO();
-                couponTemplateDO.setShopNumber(snowflakes.get(RandomUtil.randomInt(20)).nextId());
-                couponTemplateMapper.insert(couponTemplateDO);
-                count.incrementAndGet();
-            });
-        }
+    @Override
+    public String mark() {
+        return MERCHANT_ADMIN_CREATE_COUPON_TEMPLATE_KEY.name();
+    }
+
+    @Override
+    public int getOrder() {
+        return 0;
     }
 }

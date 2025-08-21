@@ -28,4 +28,4 @@
 #
 # 本软件受到[山东流年网络科技有限公司]及其许可人的版权保护。
 
-com.nageoffer.onecoupon.framework.config.WebAutoConfiguration
+onecoupon.framework.config.WebAutoConfiguration

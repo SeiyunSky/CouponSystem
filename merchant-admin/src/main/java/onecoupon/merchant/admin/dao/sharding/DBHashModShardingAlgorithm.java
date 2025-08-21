@@ -32,68 +32,63 @@
  * 本软件受到[山东流年网络科技有限公司]及其许可人的版权保护。
  */
 
-package com.nageoffer.onecoupon.merchant.admin.template;
+package onecoupon.merchant.admin.dao.sharding;
 
-import cn.hutool.core.lang.Snowflake;
-import cn.hutool.core.util.RandomUtil;
-import onecoupon.merchant.admin.dao.entity.CouponTemplateDO;
-import onecoupon.merchant.admin.dao.mapper.CouponTemplateMapper;
-import jodd.util.ThreadUtil;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import lombok.Getter;
+import org.apache.shardingsphere.infra.util.exception.ShardingSpherePreconditions;
+import org.apache.shardingsphere.sharding.api.sharding.standard.PreciseShardingValue;
+import org.apache.shardingsphere.sharding.api.sharding.standard.RangeShardingValue;
+import org.apache.shardingsphere.sharding.api.sharding.standard.StandardShardingAlgorithm;
+import org.apache.shardingsphere.sharding.exception.algorithm.sharding.ShardingAlgorithmInitializationException;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Properties;
 
 /**
- * Mock 优惠券模板数据，方便分库分表均衡测试
- * <p>
- * 作者：马丁
- * 加项目群：早加入就是优势！500人内部项目群，分享的知识总有你需要的 <a href="https://t.zsxq.com/cw7b9" />
- * 开发时间：2024-07-10
+ * 基于 HashMod 方式自定义分库算法
  */
-@SpringBootTest
-public class MockCouponTemplateDataTests {
+public final class DBHashModShardingAlgorithm implements StandardShardingAlgorithm<Long> {
 
-    @Autowired
-    private CouponTemplateMapper couponTemplateMapper;
+    @Getter
+    private Properties props;
 
-    private final CouponTemplateTest couponTemplateTest = new CouponTemplateTest();
-    private final List<Snowflake> snowflakes = new ArrayList<>();
-    private final ExecutorService executorService = new ThreadPoolExecutor(
-            10,
-            10,
-            9999,
-            TimeUnit.SECONDS,
-            new SynchronousQueue<>(),
-            new ThreadPoolExecutor.CallerRunsPolicy()
-    );
-    private final int maxNum = 50000;
+    private int shardingCount;
+    private static final String SHARDING_COUNT_KEY = "sharding-count";
 
-    public void beforeDataBuild() {
-        for (int i = 0; i < 20; i++) {
-            snowflakes.add(new Snowflake(i));
+    @Override
+    public String doSharding(Collection<String> availableTargetNames, PreciseShardingValue<Long> shardingValue) {
+        long id = shardingValue.getValue();
+        int dbSize = availableTargetNames.size();
+        int mod = (int) hashShardingValue(id) % shardingCount / (shardingCount / dbSize);
+        int index = 0;
+        for (String targetName : availableTargetNames) {
+            if (index == mod) {
+                return targetName;
+            }
+            index++;
         }
+        throw new IllegalArgumentException("No target found for value: " + id);
     }
 
-    @Test
-    public void mockCouponTemplateTest() {
-        beforeDataBuild();
-        AtomicInteger count = new AtomicInteger(0);
-        while (count.get() < maxNum) {
-            executorService.execute(() -> {
-                ThreadUtil.sleep(RandomUtil.randomInt(10));
-                CouponTemplateDO couponTemplateDO = couponTemplateTest.buildCouponTemplateDO();
-                couponTemplateDO.setShopNumber(snowflakes.get(RandomUtil.randomInt(20)).nextId());
-                couponTemplateMapper.insert(couponTemplateDO);
-                count.incrementAndGet();
-            });
-        }
+    @Override
+    public Collection<String> doSharding(Collection<String> availableTargetNames, RangeShardingValue<Long> shardingValue) {
+        // 暂无范围分片场景，默认返回空
+        return List.of();
+    }
+
+    @Override
+    public void init(Properties props) {
+        this.props = props;
+        shardingCount = getShardingCount(props);
+    }
+
+    private int getShardingCount(final Properties props) {
+        ShardingSpherePreconditions.checkState(props.containsKey(SHARDING_COUNT_KEY), () -> new ShardingAlgorithmInitializationException(getType(), "Sharding count cannot be null."));
+        return Integer.parseInt(props.getProperty(SHARDING_COUNT_KEY));
+    }
+
+    private long hashShardingValue(final Comparable<?> shardingValue) {
+        return Math.abs((long) shardingValue.hashCode());
     }
 }

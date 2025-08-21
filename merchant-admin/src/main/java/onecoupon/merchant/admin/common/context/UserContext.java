@@ -32,68 +32,65 @@
  * 本软件受到[山东流年网络科技有限公司]及其许可人的版权保护。
  */
 
-package com.nageoffer.onecoupon.merchant.admin.template;
+package onecoupon.merchant.admin.common.context;
 
-import cn.hutool.core.lang.Snowflake;
-import cn.hutool.core.util.RandomUtil;
-import onecoupon.merchant.admin.dao.entity.CouponTemplateDO;
-import onecoupon.merchant.admin.dao.mapper.CouponTemplateMapper;
-import jodd.util.ThreadUtil;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import com.alibaba.ttl.TransmittableThreadLocal;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Optional;
 
 /**
- * Mock 优惠券模板数据，方便分库分表均衡测试
- * <p>
- * 作者：马丁
- * 加项目群：早加入就是优势！500人内部项目群，分享的知识总有你需要的 <a href="https://t.zsxq.com/cw7b9" />
- * 开发时间：2024-07-10
+ * 用户登录信息存储上下文
  */
-@SpringBootTest
-public class MockCouponTemplateDataTests {
+public final class UserContext {
 
-    @Autowired
-    private CouponTemplateMapper couponTemplateMapper;
+    /**
+     * <a href="https://github.com/alibaba/transmittable-thread-local" />
+     */
+    private static final ThreadLocal<UserInfoDTO> USER_THREAD_LOCAL = new TransmittableThreadLocal<>();
 
-    private final CouponTemplateTest couponTemplateTest = new CouponTemplateTest();
-    private final List<Snowflake> snowflakes = new ArrayList<>();
-    private final ExecutorService executorService = new ThreadPoolExecutor(
-            10,
-            10,
-            9999,
-            TimeUnit.SECONDS,
-            new SynchronousQueue<>(),
-            new ThreadPoolExecutor.CallerRunsPolicy()
-    );
-    private final int maxNum = 50000;
-
-    public void beforeDataBuild() {
-        for (int i = 0; i < 20; i++) {
-            snowflakes.add(new Snowflake(i));
-        }
+    /**
+     * 设置用户至上下文
+     *
+     * @param user 用户详情信息
+     */
+    public static void setUser(UserInfoDTO user) {
+        USER_THREAD_LOCAL.set(user);
     }
 
-    @Test
-    public void mockCouponTemplateTest() {
-        beforeDataBuild();
-        AtomicInteger count = new AtomicInteger(0);
-        while (count.get() < maxNum) {
-            executorService.execute(() -> {
-                ThreadUtil.sleep(RandomUtil.randomInt(10));
-                CouponTemplateDO couponTemplateDO = couponTemplateTest.buildCouponTemplateDO();
-                couponTemplateDO.setShopNumber(snowflakes.get(RandomUtil.randomInt(20)).nextId());
-                couponTemplateMapper.insert(couponTemplateDO);
-                count.incrementAndGet();
-            });
-        }
+    /**
+     * 获取上下文中用户 ID
+     *
+     * @return 用户 ID
+     */
+    public static String getUserId() {
+        UserInfoDTO userInfoDTO = USER_THREAD_LOCAL.get();
+        return Optional.ofNullable(userInfoDTO).map(UserInfoDTO::getUserId).orElse(null);
+    }
+
+    /**
+     * 获取上下文中用户名称
+     *
+     * @return 用户名称
+     */
+    public static String getUsername() {
+        UserInfoDTO userInfoDTO = USER_THREAD_LOCAL.get();
+        return Optional.ofNullable(userInfoDTO).map(UserInfoDTO::getUsername).orElse(null);
+    }
+
+    /**
+     * 获取上下文中用户店铺编号
+     *
+     * @return 用户店铺编号
+     */
+    public static Long getShopNumber() {
+        UserInfoDTO userInfoDTO = USER_THREAD_LOCAL.get();
+        return Optional.ofNullable(userInfoDTO).map(UserInfoDTO::getShopNumber).orElse(null);
+    }
+
+    /**
+     * 清理用户上下文
+     */
+    public static void removeUser() {
+        USER_THREAD_LOCAL.remove();
     }
 }

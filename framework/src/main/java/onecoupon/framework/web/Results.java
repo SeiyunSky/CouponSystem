@@ -32,68 +32,64 @@
  * 本软件受到[山东流年网络科技有限公司]及其许可人的版权保护。
  */
 
-package com.nageoffer.onecoupon.merchant.admin.template;
+package onecoupon.framework.web;
 
-import cn.hutool.core.lang.Snowflake;
-import cn.hutool.core.util.RandomUtil;
-import onecoupon.merchant.admin.dao.entity.CouponTemplateDO;
-import onecoupon.merchant.admin.dao.mapper.CouponTemplateMapper;
-import jodd.util.ThreadUtil;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import onecoupon.framework.errorcode.BaseErrorCode;
+import onecoupon.framework.exception.AbstractException;
+import onecoupon.framework.result.Result;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Optional;
 
 /**
- * Mock 优惠券模板数据，方便分库分表均衡测试
- * <p>
- * 作者：马丁
- * 加项目群：早加入就是优势！500人内部项目群，分享的知识总有你需要的 <a href="https://t.zsxq.com/cw7b9" />
- * 开发时间：2024-07-10
+ * 构建全局返回对象构造器｜方便开发者构建全局返回对象
  */
-@SpringBootTest
-public class MockCouponTemplateDataTests {
+public final class Results {
 
-    @Autowired
-    private CouponTemplateMapper couponTemplateMapper;
-
-    private final CouponTemplateTest couponTemplateTest = new CouponTemplateTest();
-    private final List<Snowflake> snowflakes = new ArrayList<>();
-    private final ExecutorService executorService = new ThreadPoolExecutor(
-            10,
-            10,
-            9999,
-            TimeUnit.SECONDS,
-            new SynchronousQueue<>(),
-            new ThreadPoolExecutor.CallerRunsPolicy()
-    );
-    private final int maxNum = 50000;
-
-    public void beforeDataBuild() {
-        for (int i = 0; i < 20; i++) {
-            snowflakes.add(new Snowflake(i));
-        }
+    /**
+     * 构造成功响应
+     */
+    public static Result<Void> success() {
+        return new Result<Void>()
+                .setCode(Result.SUCCESS_CODE);
     }
 
-    @Test
-    public void mockCouponTemplateTest() {
-        beforeDataBuild();
-        AtomicInteger count = new AtomicInteger(0);
-        while (count.get() < maxNum) {
-            executorService.execute(() -> {
-                ThreadUtil.sleep(RandomUtil.randomInt(10));
-                CouponTemplateDO couponTemplateDO = couponTemplateTest.buildCouponTemplateDO();
-                couponTemplateDO.setShopNumber(snowflakes.get(RandomUtil.randomInt(20)).nextId());
-                couponTemplateMapper.insert(couponTemplateDO);
-                count.incrementAndGet();
-            });
-        }
+    /**
+     * 构造带返回数据的成功响应
+     */
+    public static <T> Result<T> success(T data) {
+        return new Result<T>()
+                .setCode(Result.SUCCESS_CODE)
+                .setData(data);
+    }
+
+    /**
+     * 构建服务端失败响应
+     */
+    protected static Result<Void> failure() {
+        return new Result<Void>()
+                .setCode(BaseErrorCode.SERVICE_ERROR.code())
+                .setMessage(BaseErrorCode.SERVICE_ERROR.message());
+    }
+
+    /**
+     * 通过 {@link AbstractException} 构建失败响应
+     */
+    protected static Result<Void> failure(AbstractException abstractException) {
+        String errorCode = Optional.ofNullable(abstractException.getErrorCode())
+                .orElse(BaseErrorCode.SERVICE_ERROR.code());
+        String errorMessage = Optional.ofNullable(abstractException.getErrorMessage())
+                .orElse(BaseErrorCode.SERVICE_ERROR.message());
+        return new Result<Void>()
+                .setCode(errorCode)
+                .setMessage(errorMessage);
+    }
+
+    /**
+     * 通过 errorCode、errorMessage 构建失败响应
+     */
+    protected static Result<Void> failure(String errorCode, String errorMessage) {
+        return new Result<Void>()
+                .setCode(errorCode)
+                .setMessage(errorMessage);
     }
 }

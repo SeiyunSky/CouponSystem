@@ -32,68 +32,53 @@
  * 本软件受到[山东流年网络科技有限公司]及其许可人的版权保护。
  */
 
-package com.nageoffer.onecoupon.merchant.admin.template;
+package onecoupon.merchant.admin.config;
 
-import cn.hutool.core.lang.Snowflake;
-import cn.hutool.core.util.RandomUtil;
-import onecoupon.merchant.admin.dao.entity.CouponTemplateDO;
-import onecoupon.merchant.admin.dao.mapper.CouponTemplateMapper;
-import jodd.util.ThreadUtil;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Contact;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.info.License;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 /**
- * Mock 优惠券模板数据，方便分库分表均衡测试
- * <p>
- * 作者：马丁
- * 加项目群：早加入就是优势！500人内部项目群，分享的知识总有你需要的 <a href="https://t.zsxq.com/cw7b9" />
- * 开发时间：2024-07-10
+ * 设置文档 API Swagger 配置信息，为了让 <a href="http://127.0.0.1:{server.port}{server.servlet.context-path}/doc.html" /> 中的信息看着更饱满
  */
-@SpringBootTest
-public class MockCouponTemplateDataTests {
+@Slf4j
+@Configuration
+public class SwaggerConfiguration implements ApplicationRunner {
 
-    @Autowired
-    private CouponTemplateMapper couponTemplateMapper;
+    @Value("${server.port:8080}")
+    private String serverPort;
+    @Value("${server.servlet.context-path:}")
+    private String contextPath;
 
-    private final CouponTemplateTest couponTemplateTest = new CouponTemplateTest();
-    private final List<Snowflake> snowflakes = new ArrayList<>();
-    private final ExecutorService executorService = new ThreadPoolExecutor(
-            10,
-            10,
-            9999,
-            TimeUnit.SECONDS,
-            new SynchronousQueue<>(),
-            new ThreadPoolExecutor.CallerRunsPolicy()
-    );
-    private final int maxNum = 50000;
-
-    public void beforeDataBuild() {
-        for (int i = 0; i < 20; i++) {
-            snowflakes.add(new Snowflake(i));
-        }
+    /**
+     * 自定义 openAPI 个性化信息
+     */
+    @Bean
+    public OpenAPI openAPI() {
+        return new OpenAPI()
+                .info(new Info() // 基本信息配置
+                        .title("沫路优惠券-商家后台管理系统") // 标题
+                        .description("创建优惠券、店家查看以及管理优惠券、创建优惠券发放批次等") // 描述 Api 接口文档的基本信息
+                        .version("v1.0.0") // 版本
+                        // 设置 OpenAPI 文档的联系信息
+                        .contact(new Contact().name("molu").email("1447909240@QQ.com"))
+                        // 设置 OpenAPI 文档的许可证信息，包括许可证名称和许可证URL
+                        .license(new License().name("沫路制作").url("https://github.com/SeiyunSky?tab=repositories"))
+                );
     }
 
-    @Test
-    public void mockCouponTemplateTest() {
-        beforeDataBuild();
-        AtomicInteger count = new AtomicInteger(0);
-        while (count.get() < maxNum) {
-            executorService.execute(() -> {
-                ThreadUtil.sleep(RandomUtil.randomInt(10));
-                CouponTemplateDO couponTemplateDO = couponTemplateTest.buildCouponTemplateDO();
-                couponTemplateDO.setShopNumber(snowflakes.get(RandomUtil.randomInt(20)).nextId());
-                couponTemplateMapper.insert(couponTemplateDO);
-                count.incrementAndGet();
-            });
-        }
+    /**
+     * 方便启动项目后可以直接点击链接跳转，而不用自己到浏览器输入路径
+     */
+    @Override
+    public void run(ApplicationArguments args) throws Exception {
+        log.info("API Document: http://127.0.0.1:{}{}/doc.html", serverPort, contextPath);
     }
 }

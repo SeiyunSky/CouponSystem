@@ -7,26 +7,11 @@
     <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <description>
-        🔥热门推荐🔥牛券系统，春招、秋招、应届、社招项目。SpringBoot3+Java17+SpringCloudAlibaba+RocketMQ+ElasticSearch等技术架构，完成优惠券秒杀+分发+结算+搜索等服务，帮助学生主打就业的项目。
-    </description>
-
     <developers>
         <developer>
-            <name>马丁</name>
-            <email>machen@apache.org</email>
-            <url>https://github.com/magestacks</url>
-            <organization>Apache and openGoofy</organization>
-        </developer>
-
-        <developer>
-            <name>优雅</name>
-            <email>elegance520@163.com</email>
-        </developer>
-
-        <developer>
-            <name>Henry</name>
-            <email>yzwh0102@qq.com</email>
+            <name>沫路</name>
+            <email>1447909240@qq.com</email>
+            <url>https://github.com/SeiyunSky/CouponSystem</url>
         </developer>
     </developers>
 
