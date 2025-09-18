@@ -46,10 +46,12 @@ import onecoupon.merchant.admin.dto.resp.CouponTemplateQueryRespDTO;
 import onecoupon.merchant.admin.service.CouponTemplateService;
 import onecoupon.merchant.admin.service.basics.chain.MerchantAdminChainContext;
 import lombok.RequiredArgsConstructor;
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.starter.annotation.LogRecord;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,6 +72,23 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
     private final MerchantAdminChainContext merchantAdminChainContext;
     private final StringRedisTemplate stringRedisTemplate;
 
+
+    @LogRecord(
+            success = """
+                创建优惠券：{{#requestParam.name}}， \
+                优惠对象：{COMMON_ENUM_PARSE{'DiscountTargetEnum' + '_' + #requestParam.target}}， \\
+                优惠类型：{COMMON_ENUM_PARSE{'DiscountTypeEnum' + '_' + #requestParam.type}}， \\
+                库存数量：{{#requestParam.stock}}， \
+                优惠商品编码：{{#requestParam.goods}}， \
+                有效期开始时间：{{#requestParam.validStartTime}}， \
+                有效期结束时间：{{#requestParam.validEndTime}}， \
+                领取规则：{{#requestParam.receiveRule}}， \
+                消耗规则：{{#requestParam.consumeRule}};
+                """,
+            type = "CouponTemplate",
+            bizNo = "{{#bizNo}}",
+            extra = "{{#requestParam.toString()}}"
+    )
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void createCouponTemplate(CouponTemplateSaveReqDTO requestParam) {
@@ -81,6 +100,9 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         couponTemplateDO.setStatus(CouponTemplateStatusEnum.ACTIVE.getStatus());
         couponTemplateDO.setShopNumber(UserContext.getShopNumber());
         couponTemplateMapper.insert(couponTemplateDO);
+
+        //@LogRecord获取模板，因为模板是运行时生成的
+        LogRecordContext.putVariable("bizNo", couponTemplateDO.getId());
 
         // 缓存预热：通过将数据库的记录序列化成 JSON 字符串放入 Redis 缓存
         CouponTemplateQueryRespDTO actualRespDTO = BeanUtil.toBean(couponTemplateDO, CouponTemplateQueryRespDTO.class);

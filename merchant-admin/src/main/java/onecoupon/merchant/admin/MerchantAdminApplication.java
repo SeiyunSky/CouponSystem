@@ -36,6 +36,7 @@ package onecoupon.merchant.admin;
 
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
+import com.mzt.logapi.starter.annotation.EnableLogRecord;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
@@ -43,6 +44,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @SpringBootApplication
 @MapperScan("onecoupon.merchant.admin.dao.mapper")
+@EnableLogRecord(tenant = "MerchantAdmin")
 public class MerchantAdminApplication {
 
     public static void main(String[] args) {
