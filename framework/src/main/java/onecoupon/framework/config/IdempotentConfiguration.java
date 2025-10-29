@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Configuration;
 /**
  * 幂等组件相关配置类
  */
-@Configuration
 public class IdempotentConfiguration {
 
     @Bean
