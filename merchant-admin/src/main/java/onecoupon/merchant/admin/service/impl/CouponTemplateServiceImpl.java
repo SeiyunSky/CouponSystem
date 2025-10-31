@@ -6,6 +6,7 @@ package onecoupon.merchant.admin.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.json.JSONObject;
 import com.alibaba.fastjson2.JSON;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -14,6 +15,10 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.extension.toolkit.SqlHelper;
 import com.github.xiaoymin.knife4j.core.util.StrUtil;
+import com.mzt.logapi.context.LogRecordContext;
+import com.mzt.logapi.starter.annotation.LogRecord;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import onecoupon.framework.exception.ClientException;
 import onecoupon.framework.exception.ServiceException;
 import onecoupon.merchant.admin.common.constant.MerchantAdminRedisConstant;
@@ -28,13 +33,17 @@ import onecoupon.merchant.admin.dto.resp.CouponTemplatePageQueryRespDTO;
 import onecoupon.merchant.admin.dto.resp.CouponTemplateQueryRespDTO;
 import onecoupon.merchant.admin.service.CouponTemplateService;
 import onecoupon.merchant.admin.service.basics.chain.MerchantAdminChainContext;
-import lombok.RequiredArgsConstructor;
-import com.mzt.logapi.context.LogRecordContext;
-import com.mzt.logapi.starter.annotation.LogRecord;
+import org.apache.rocketmq.client.producer.SendCallback;
+import org.apache.rocketmq.client.producer.SendResult;
+import org.apache.rocketmq.common.message.MessageConst;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
+import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -44,6 +53,7 @@ import static onecoupon.merchant.admin.common.enums.ChainBizMarkEnum.MERCHANT_AD
 /**
  * 优惠券模板业务逻辑实现层
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper, CouponTemplateDO> implements CouponTemplateService {
@@ -51,20 +61,21 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
     private final CouponTemplateMapper couponTemplateMapper;
     private final MerchantAdminChainContext merchantAdminChainContext;
     private final StringRedisTemplate stringRedisTemplate;
-
+    private final RocketMQTemplate rocketMQTemplate;
+    private final ConfigurableEnvironment configurableEnvironment;
 
     @LogRecord(
             success = """
-                创建优惠券：{{#requestParam.name}}， \
-                优惠对象：{COMMON_ENUM_PARSE{'DiscountTargetEnum' + '_' + #requestParam.target}}， \\
-                优惠类型：{COMMON_ENUM_PARSE{'DiscountTypeEnum' + '_' + #requestParam.type}}， \\
-                库存数量：{{#requestParam.stock}}， \
-                优惠商品编码：{{#requestParam.goods}}， \
-                有效期开始时间：{{#requestParam.validStartTime}}， \
-                有效期结束时间：{{#requestParam.validEndTime}}， \
-                领取规则：{{#requestParam.receiveRule}}， \
-                消耗规则：{{#requestParam.consumeRule}};
-                """,
+                    创建优惠券：{{#requestParam.name}}， \
+                    优惠对象：{COMMON_ENUM_PARSE{'DiscountTargetEnum' + '_' + #requestParam.target}}， \\
+                    优惠类型：{COMMON_ENUM_PARSE{'DiscountTypeEnum' + '_' + #requestParam.type}}， \\
+                    库存数量：{{#requestParam.stock}}， \
+                    优惠商品编码：{{#requestParam.goods}}， \
+                    有效期开始时间：{{#requestParam.validStartTime}}， \
+                    有效期结束时间：{{#requestParam.validEndTime}}， \
+                    领取规则：{{#requestParam.receiveRule}}， \
+                    消耗规则：{{#requestParam.consumeRule}};
+                    """,
             type = "CouponTemplate",
             bizNo = "{{#bizNo}}",
             extra = "{{#requestParam.toString()}}"
@@ -115,6 +126,40 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
                 keys,
                 args.toArray()
         );
+
+        // 使用 RocketMQ5.x 发送任意时间延时消息
+        // 定义 Topic
+        String couponTemplateDelayCloseTopic = "one-coupon_merchant-admin-service_coupon-template-delay_topic${unique-name:}";
+        // 通过 Spring 上下文解析占位符，也就是把 VM 参数里的 unique-name 替换到字符串中
+        couponTemplateDelayCloseTopic = configurableEnvironment.resolvePlaceholders(couponTemplateDelayCloseTopic);
+        JSONObject messageBody = new JSONObject();
+        messageBody.put("couponTemplateId", couponTemplateDO.getId());
+        messageBody.put("shopNumber", UserContext.getShopNumber());
+        Long deliverTimeStamp = couponTemplateDO.getValidEndTime().getTime();
+        String messageKeys = UUID.randomUUID().toString();
+        Message<JSONObject> message = MessageBuilder
+                .withPayload(messageBody)
+                .setHeader(MessageConst.PROPERTY_KEYS, messageKeys)
+                .build();
+        try {
+            rocketMQTemplate.asyncSend(couponTemplateDelayCloseTopic, message,
+                        new SendCallback() {
+                        @Override
+                        public void onSuccess(SendResult sendResult) {
+                            log.info("发送成功: {}", sendResult.getMsgId());
+                        }
+
+                        @Override
+                        public void onException(Throwable e) {
+                            log.error("异步发送失败，进入降级", e);
+                            //这里可以加入异步发送失败后的降级处理流程
+                        }
+                    },deliverTimeStamp);
+        } catch (Exception ex) {
+            log.error("异步发送异常", ex);
+            //handleSendFailure(couponTemplateDO);
+        }
+
     }
 
     @Override

@@ -16,6 +16,14 @@ mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
+rocketmq:
+  name-server: 127.0.0.1:9876 #vm参数可以设置远程服务器，启动时自动替换
+  producer:
+    group: oneCoupon_merchant-admin${unique-name:}-service_common-message-execute_pg
+    send-message-timeout: 2000
+    retry-times-when-send-failed: 1
+    retry-times-when-send-async-failed: 1
+
 springdoc:
   default-flat-param-object: true
   swagger-ui:
