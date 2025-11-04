@@ -180,6 +180,17 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
 
     }
 
+    @Override
+    public CouponTemplateQueryRespDTO findCouponTemplateById(String couponTemplateId) {
+        LambdaQueryWrapper<CouponTemplateDO> queryWrapper = Wrappers.lambdaQuery(CouponTemplateDO.class)
+                .eq(CouponTemplateDO::getShopNumber, UserContext.getShopNumber())
+                .eq(CouponTemplateDO::getId, couponTemplateId);
+
+        CouponTemplateDO couponTemplateDO = couponTemplateMapper.selectOne(queryWrapper);
+        return BeanUtil.toBean(couponTemplateDO, CouponTemplateQueryRespDTO.class);
+    }
+
+
     @LogRecord(
             success = "增加发行量：{{#requestParam.number}}",
             type = "CouponTemplate",
@@ -255,5 +266,4 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
         stringRedisTemplate.opsForHash().put(couponTemplateCacheKey, "status", String.valueOf(CouponTemplateStatusEnum.ENDED.getStatus()));
 
     }
-
 }

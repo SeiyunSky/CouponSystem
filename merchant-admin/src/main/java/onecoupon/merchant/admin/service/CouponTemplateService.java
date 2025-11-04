@@ -7,6 +7,7 @@ import onecoupon.merchant.admin.dto.req.CouponTemplateNumberReqDTO;
 import onecoupon.merchant.admin.dto.req.CouponTemplatePageQueryReqDTO;
 import onecoupon.merchant.admin.dto.req.CouponTemplateSaveReqDTO;
 import onecoupon.merchant.admin.dto.resp.CouponTemplatePageQueryRespDTO;
+import onecoupon.merchant.admin.dto.resp.CouponTemplateQueryRespDTO;
 
 /**
  * 优惠券模板业务逻辑层
@@ -40,4 +41,11 @@ public interface CouponTemplateService extends IService<CouponTemplateDO> {
      * @param couponTemplateId 优惠券模板 ID
      */
     void terminateCouponTemplate(String couponTemplateId);
+
+    /**
+     * 根据id查询优惠券模板
+     * @param couponTemplateId 优惠券模板 ID
+     * @return 查询结果
+     */
+    CouponTemplateQueryRespDTO findCouponTemplateById(String couponTemplateId);
 }
