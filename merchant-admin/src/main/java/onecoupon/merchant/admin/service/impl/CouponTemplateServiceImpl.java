@@ -31,6 +31,8 @@ import onecoupon.merchant.admin.dto.req.CouponTemplatePageQueryReqDTO;
 import onecoupon.merchant.admin.dto.req.CouponTemplateSaveReqDTO;
 import onecoupon.merchant.admin.dto.resp.CouponTemplatePageQueryRespDTO;
 import onecoupon.merchant.admin.dto.resp.CouponTemplateQueryRespDTO;
+import onecoupon.merchant.admin.mq.event.CouponTemplateDelayEvent;
+import onecoupon.merchant.admin.mq.producer.CouponTemplateDelayExecuteStatusProducer;
 import onecoupon.merchant.admin.service.CouponTemplateService;
 import onecoupon.merchant.admin.service.basics.chain.MerchantAdminChainContext;
 import org.apache.rocketmq.client.producer.SendCallback;
@@ -61,8 +63,7 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
     private final CouponTemplateMapper couponTemplateMapper;
     private final MerchantAdminChainContext merchantAdminChainContext;
     private final StringRedisTemplate stringRedisTemplate;
-    private final RocketMQTemplate rocketMQTemplate;
-    private final ConfigurableEnvironment configurableEnvironment;
+    private final CouponTemplateDelayExecuteStatusProducer couponTemplateDelayExecuteStatusProducer;
 
     @LogRecord(
             success = """
@@ -127,38 +128,13 @@ public class CouponTemplateServiceImpl extends ServiceImpl<CouponTemplateMapper,
                 args.toArray()
         );
 
-        // 使用 RocketMQ5.x 发送任意时间延时消息
-        // 定义 Topic
-        String couponTemplateDelayCloseTopic = "one-coupon_merchant-admin-service_coupon-template-delay_topic${unique-name:}";
-        // 通过 Spring 上下文解析占位符，也就是把 VM 参数里的 unique-name 替换到字符串中
-        couponTemplateDelayCloseTopic = configurableEnvironment.resolvePlaceholders(couponTemplateDelayCloseTopic);
-        JSONObject messageBody = new JSONObject();
-        messageBody.put("couponTemplateId", couponTemplateDO.getId());
-        messageBody.put("shopNumber", UserContext.getShopNumber());
-        Long deliverTimeStamp = couponTemplateDO.getValidEndTime().getTime();
-        String messageKeys = UUID.randomUUID().toString();
-        Message<JSONObject> message = MessageBuilder
-                .withPayload(messageBody)
-                .setHeader(MessageConst.PROPERTY_KEYS, messageKeys)
+        // 发送延时消息事件，优惠券活动到期修改优惠券模板状态
+        CouponTemplateDelayEvent templateDelayEvent = CouponTemplateDelayEvent.builder()
+                .shopNumber(UserContext.getShopNumber())
+                .couponTemplateId(couponTemplateDO.getId())
+                .delayTime(couponTemplateDO.getValidEndTime().getTime())
                 .build();
-        try {
-            rocketMQTemplate.asyncSend(couponTemplateDelayCloseTopic, message,
-                        new SendCallback() {
-                        @Override
-                        public void onSuccess(SendResult sendResult) {
-                            log.info("发送成功: {}", sendResult.getMsgId());
-                        }
-
-                        @Override
-                        public void onException(Throwable e) {
-                            log.error("异步发送失败，进入降级", e);
-                            //这里可以加入异步发送失败后的降级处理流程
-                        }
-                    },deliverTimeStamp);
-        } catch (Exception ex) {
-            log.error("异步发送异常", ex);
-            //handleSendFailure(couponTemplateDO);
-        }
+        couponTemplateDelayExecuteStatusProducer.sendMessage(templateDelayEvent);
 
     }
 

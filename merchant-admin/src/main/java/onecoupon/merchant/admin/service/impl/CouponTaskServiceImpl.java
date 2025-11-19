@@ -7,6 +7,7 @@ import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import onecoupon.framework.exception.ClientException;
 import onecoupon.merchant.admin.common.context.UserContext;
 import onecoupon.merchant.admin.common.enums.CouponTaskSendTypeEnum;
@@ -15,13 +16,14 @@ import onecoupon.merchant.admin.dao.entity.CouponTaskDO;
 import onecoupon.merchant.admin.dao.mapper.CouponTaskMapper;
 import onecoupon.merchant.admin.dto.req.CouponTaskCreateReqDTO;
 import onecoupon.merchant.admin.dto.resp.CouponTemplateQueryRespDTO;
+import onecoupon.merchant.admin.mq.event.CouponTaskExecuteEvent;
+import onecoupon.merchant.admin.mq.producer.CouponTaskActualExecuteProducer;
 import onecoupon.merchant.admin.service.CouponTaskService;
 import onecoupon.merchant.admin.service.CouponTemplateService;
 import onecoupon.merchant.admin.service.handler.excel.RowCountListener;
 import org.redisson.api.RBlockingDeque;
 import org.redisson.api.RDelayedQueue;
 import org.redisson.api.RedissonClient;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,11 +33,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponTaskDO> implements CouponTaskService {
 
     private final CouponTemplateService couponTemplateService;
     private final CouponTaskMapper couponTaskMapper;
     private final RedissonClient redissonClient;
+    private final CouponTaskActualExecuteProducer couponTaskActualExecuteProducer;
+
 
     private final ExecutorService executorService = new ThreadPoolExecutor(
             Runtime.getRuntime().availableProcessors(),
@@ -95,6 +100,13 @@ public class CouponTaskServiceImpl extends ServiceImpl<CouponTaskMapper, CouponT
         RDelayedQueue<Object> delayedQueue = redissonClient.getDelayedQueue(blockingDeque);
         // 这里延迟时间设置 20 秒，原因是我们笃定上面线程池 20 秒之内就能结束任务
         delayedQueue.offer(delayJsonObject, 20, TimeUnit.SECONDS);
+
+        if (Objects.equals(requestParam.getSendType(), CouponTaskSendTypeEnum.IMMEDIATE.getType())) {
+            CouponTaskExecuteEvent couponTaskExecuteEvent = CouponTaskExecuteEvent.builder()
+                    .couponTaskId(couponTaskDO.getId())
+                    .build();
+            couponTaskActualExecuteProducer.sendMessage(couponTaskExecuteEvent);
+        }
     }
 
     private void refreshCouponTaskSendNum(JSONObject delayJsonObject) {
